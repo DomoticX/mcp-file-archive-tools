@@ -15,7 +15,7 @@ All bundled tools/backends below have been tested running on Windows 11
 | `.7z`, `.zip`, `.tar`, `.gz`, `.xz` | `7za.exe`             | **Implemented** |
 | `.lzh`, `.lha`                   | `lha.exe`              | **Implemented** |
 | `.uha`                           | `UHARC.EXE`            | **Implemented** |
-| `.cab`                           | `makecab.exe` / `expand.exe` | Planned |
+| `.cab`                           | `makecab.exe` / `expand.exe` | **Implemented** |
 
 Call the `list_supported_formats` tool at any time to get this table
 programmatically.
@@ -39,6 +39,9 @@ programmatically.
 - `bin/uharc/UHARC.EXE` (see [bin/uharc/README.md](bin/uharc/README.md) for
   where to get it). Used for all `.uha` operations; `UHARCSFX.EXE`
   alongside it is also needed for `uharc_convert_to_sfx`.
+- `makecab.exe` and `expand.exe` for `.cab` support — nothing to download,
+  these ship with Windows and are normally already on `PATH`
+  (`C:\Windows\System32`).
 
 ## Running
 
@@ -64,12 +67,13 @@ backends/
   sevenzip.py                - all 7-Zip tools (sevenzip_list_archive, ...)
   lha.py                     - all LHA/LZH tools (lha_list_archive, ...)
   uharc.py                   - all UHARC tools (uharc_list_archive, ...)
+  cab.py                     - all CAB tools (cab_list_archive, ...)
   generic.py                 - list_supported_formats, extract_any_archive
 ```
 
 Each backend module owns its executable path(s), exit-code table, output
-parser and `@mcp.tool()` functions - adding a new archiver (e.g. CAB) means
-adding one new file under `backends/` without touching the others.
+parser and `@mcp.tool()` functions - adding a new archiver means adding one
+new file under `backends/` without touching the others.
 
 ## Available tools
 
@@ -238,13 +242,48 @@ no "print a single file" command exist in the tool itself.
   self-extracting `.exe` by concatenating `UHARCSFX.EXE` with the archive
   bytes (UHARC's own SFX mechanism — there's no separate convert command).
 
+### CAB (.cab)
+
+All CAB tools are prefixed `cab_`, use `makecab.exe`/`expand.exe` (no
+`bin/` folder or download needed — see Requirements above), and take no
+password (the format/tools don't support it). This is the narrowest
+backend of all: no delete, rename, update, comment or search, and no
+native "test" or "print a single file" command either.
+
+- `cab_list_archive(archive_path)` — list entries. **Names only** —
+  `expand.exe`'s own listing doesn't expose any directory component, even
+  though extraction does restore it (see the caveat below).
+- `cab_extract_archive(archive_path, destination=None, files=None)` —
+  extract everything or a subset of entries (always overwrites).
+- `cab_add_to_archive(archive_path, sources, compress=True)` — create a
+  cabinet from files/directories. `makecab.exe` has no append/update mode,
+  so this always (re)creates the archive fresh — an existing file at
+  `archive_path` gets overwritten, not merged into.
+- `cab_move_to_archive(archive_path, sources, compress=True)` — like
+  `cab_add_to_archive`, but **deletes the original source files** once
+  they're safely in the archive (done by this server itself — create, then
+  delete — since there's no native move mode to rely on).
+- `cab_test_archive(archive_path)` — verify archive integrity via a full
+  extract-and-discard to a temp folder (there's no dedicated test command).
+- `cab_print_file_from_archive(archive_path, file_path)` — read a single
+  entry's contents without leaving it on disk afterwards (UTF-8 text, or
+  base64 for binary files); implemented via a temporary extraction.
+
+**Caveat — single-file cabinets**: when a `.cab` holds exactly one file
+total, `expand.exe`'s extraction misnames the output after the `.cab` file
+itself instead of the real entry name (and drops any subdirectory
+placement), regardless of how the cabinet was built or which file pattern
+is requested. `cab_extract_archive` and `cab_print_file_from_archive` both
+detect and correct this before returning. See the top of `backends/cab.py`
+for the full detail.
+
 ### Generic / roadmap
 
 - `list_supported_formats()` — current format coverage.
 - `extract_any_archive(archive_path, destination=None, password=None)` —
-  dispatches to the right backend (RAR, ARJ, 7-Zip, LHA or UHARC today) by
-  file extension; raises a clear "not implemented yet" error for formats
-  still on the roadmap.
+  dispatches to the right backend (RAR, ARJ, 7-Zip, LHA, UHARC or CAB
+  today) by file extension; raises a clear "not implemented yet" error for
+  formats still on the roadmap.
 
 ## Notes
 
@@ -268,3 +307,6 @@ no "print a single file" command exist in the tool itself.
   files/directories always goes through an intermediate `.tar`, and
   extracting/listing a `.tar.gz`/`.tar.xz` involves two decompression
   passes under the hood. Both are handled automatically.
+- Every other backend bundles its own executable(s) under `bin/`; CAB is
+  the exception and relies on `makecab.exe`/`expand.exe` already being on
+  `PATH`, which is the case on a stock Windows install.

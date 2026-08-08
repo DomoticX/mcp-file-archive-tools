@@ -10,9 +10,7 @@ Currently implemented (see backends/):
     - 7-Zip (.7z/.zip/.tar/.gz/.xz) via the bundled 7za.exe in bin/7z/
     - LHA/LZH (.lzh/.lha) via the bundled lha.exe in bin/lha/
     - UHARC (.uha) via the bundled UHARC.EXE in bin/uharc/
-
-Planned (see common/registry.py / list_supported_formats):
-    - .cab                           -> makecab.exe / expand.exe
+    - CAB (.cab) via makecab.exe / expand.exe (ships with Windows, on PATH)
 
 Layout:
     common/    - shared MCPServer instance, subprocess/path helpers, format registry
@@ -25,7 +23,7 @@ Run:
 from __future__ import annotations
 
 from common.server import mcp
-from backends import arj, generic, lha, rar, sevenzip, uharc  # noqa: F401  (imported for @mcp.tool() registration)
+from backends import arj, cab, generic, lha, rar, sevenzip, uharc  # noqa: F401  (imported for @mcp.tool() registration)
 
 if __name__ == "__main__":
     mcp.run()
