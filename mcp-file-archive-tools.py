@@ -11,6 +11,7 @@ Currently implemented (see backends/):
     - LHA/LZH (.lzh/.lha) via the bundled lha.exe in bin/lha/
     - UHARC (.uha) via the bundled UHARC.EXE in bin/uharc/
     - CAB (.cab) via makecab.exe / expand.exe (ships with Windows, on PATH)
+    - ACE (.ace) via the bundled acefile.exe in bin/ace/ (extraction only)
 
 Layout:
     common/    - shared MCPServer instance, subprocess/path helpers, format registry
@@ -23,7 +24,7 @@ Run:
 from __future__ import annotations
 
 from common.server import mcp
-from backends import arj, cab, generic, lha, rar, sevenzip, uharc  # noqa: F401  (imported for @mcp.tool() registration)
+from backends import ace, arj, cab, generic, lha, rar, sevenzip, uharc  # noqa: F401  (imported for @mcp.tool() registration)
 
 if __name__ == "__main__":
     mcp.run()

@@ -16,6 +16,7 @@ All bundled tools/backends below have been tested running on Windows 11
 | `.lzh`, `.lha`                   | `lha.exe`              | **Implemented** |
 | `.uha`                           | `UHARC.EXE`            | **Implemented** |
 | `.cab`                           | `makecab.exe` / `expand.exe` | **Implemented** |
+| `.ace`                           | `acefile.exe`          | **Implemented** (extract-only) |
 
 Call the `list_supported_formats` tool at any time to get this table
 programmatically.
@@ -42,6 +43,9 @@ programmatically.
 - `makecab.exe` and `expand.exe` for `.cab` support — nothing to download,
   these ship with Windows and are normally already on `PATH`
   (`C:\Windows\System32`).
+- `bin/ace/acefile.exe` (see [bin/ace/README.md](bin/ace/README.md) for
+  where to get it). Used for all `.ace` operations (extraction only — see
+  the ACE section below).
 
 ## Running
 
@@ -68,6 +72,7 @@ backends/
   lha.py                     - all LHA/LZH tools (lha_list_archive, ...)
   uharc.py                   - all UHARC tools (uharc_list_archive, ...)
   cab.py                     - all CAB tools (cab_list_archive, ...)
+  ace.py                     - all ACE tools (ace_list_archive, ...)
   generic.py                 - list_supported_formats, extract_any_archive
 ```
 
@@ -277,11 +282,37 @@ is requested. `cab_extract_archive` and `cab_print_file_from_archive` both
 detect and correct this before returning. See the top of `backends/cab.py`
 for the full detail.
 
+### ACE (.ace)
+
+All ACE tools are prefixed `ace_`. **Extraction only** — ACE archive
+creation was only ever supported by the long-discontinued, commercial
+WinAce; there is no `ace_add_to_archive` or equivalent.
+
+- `ace_list_archive(archive_path, password=None)` — list entries (name,
+  size, compressed size, date, directory flag).
+- `ace_extract_archive(archive_path, destination=None, files=None, password=None, restore_attributes=False)` —
+  extract everything or a subset of entries (always overwrites).
+- `ace_test_archive(archive_path, password=None)` — verify archive
+  integrity, returns any per-file failures.
+- `ace_print_file_from_archive(archive_path, file_path, password=None)` —
+  read a single entry's contents without leaving it on disk afterwards
+  (UTF-8 text, or base64 for binary files); implemented via a temporary
+  extraction since there's no native print-to-stdout command.
+- `ace_show_headers(archive_path)` — dump raw technical header information
+  (diagnostic).
+
+Verified against real ACE 1.0/2.0 test archives. One limitation found in
+this build: an entry whose filename needs a codepage the tool can't map to
+the console's own codepage crashes the whole process with a Python
+`UnicodeEncodeError` — a bug in `acefile.exe` itself, not something this
+wrapper can work around. See [bin/ace/README.md](bin/ace/README.md) and
+the top of `backends/ace.py` for the full detail.
+
 ### Generic / roadmap
 
 - `list_supported_formats()` — current format coverage.
 - `extract_any_archive(archive_path, destination=None, password=None)` —
-  dispatches to the right backend (RAR, ARJ, 7-Zip, LHA, UHARC or CAB
+  dispatches to the right backend (RAR, ARJ, 7-Zip, LHA, UHARC, CAB or ACE
   today) by file extension; raises a clear "not implemented yet" error for
   formats still on the roadmap.
 

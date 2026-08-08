@@ -17,3 +17,6 @@ bin/lha/*
 !bin/uharc/
 bin/uharc/*
 !bin/uharc/README.md
+!bin/ace/
+bin/ace/*
+!bin/ace/README.md
