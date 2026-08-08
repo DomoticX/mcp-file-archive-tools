@@ -10,9 +10,9 @@ files: listing, extracting, creating, updating and more.
 | `.rar`                           | `Rar.exe` / `UnRAR.exe` | **Implemented** |
 | `.arj`                           | `arj.exe`              | **Implemented** |
 | `.7z`, `.zip`, `.tar`, `.gz`, `.xz` | `7za.exe`             | **Implemented** |
+| `.lzh`, `.lha`                   | `lha.exe`              | **Implemented** |
 | `.uha`                           | `uharc.exe`            | Planned |
 | `.cab`                           | `makecab.exe` / `expand.exe` | Planned |
-| `.lzh`, `.lha`                   | `lha.exe` / `lhasa.exe` | Planned |
 
 Call the `list_supported_formats` tool at any time to get this table
 programmatically.
@@ -31,6 +31,8 @@ programmatically.
   to get it). Used for all ARJ operations, read and write alike.
 - `bin/7z/7za.exe` (see [bin/7z/README.md](bin/7z/README.md) for where to
   get it). Used for all `.7z`/`.zip`/`.tar`/`.gz`/`.xz` operations.
+- `bin/lha/lha.exe` (see [bin/lha/README.md](bin/lha/README.md) for where
+  to get it). Used for all `.lzh`/`.lha` operations.
 
 ## Running
 
@@ -54,12 +56,13 @@ backends/
   rar.py                    - all RAR tools (list_archive, extract_archive, ...)
   arj.py                    - all ARJ tools (arj_list_archive, arj_extract_archive, ...)
   sevenzip.py                - all 7-Zip tools (sevenzip_list_archive, ...)
+  lha.py                     - all LHA/LZH tools (lha_list_archive, ...)
   generic.py                 - list_supported_formats, extract_any_archive
 ```
 
 Each backend module owns its executable path(s), exit-code table, output
-parser and `@mcp.tool()` functions - adding a new archiver (e.g. UHA, LHA)
-means adding one new file under `backends/` without touching the others.
+parser and `@mcp.tool()` functions - adding a new archiver (e.g. UHA) means
+adding one new file under `backends/` without touching the others.
 
 ## Available tools
 
@@ -169,11 +172,43 @@ There's no `sevenzip_` equivalent of RAR/ARJ's lock/comment/search tools —
 the 7z/zip/tar formats and the standalone `7za.exe` CLI don't expose
 those features.
 
+### LHA / LZH (.lzh / .lha)
+
+All LHA tools are prefixed `lha_`. This format doesn't support passwords
+via this tool, so none of the LHA functions take one.
+
+- `lha_list_archive(archive_path)` — list entries (name, size, directory
+  flag). Implemented via a temporary extraction rather than lha.exe's own
+  listing command — see the caveat below.
+- `lha_extract_archive(archive_path, destination=None, full_paths=True)` —
+  extract everything (always overwrites — see caveat below).
+- `lha_add_to_archive(archive_path, sources)` — create a new archive or add
+  files/directories to an existing one (always recursive).
+- `lha_update_archive(archive_path, sources)` — refresh changed files and
+  add new ones.
+- `lha_move_to_archive(archive_path, sources)` — like `lha_add_to_archive`,
+  but **deletes the original source files** once they're safely in the
+  archive.
+- `lha_test_archive(archive_path)` — verify archive integrity.
+- `lha_print_file_from_archive(archive_path, file_path)` — read a single
+  entry's contents without extracting to disk (UTF-8 text, or base64 for
+  binary files).
+- `lha_recover_archive(archive_path, destination=None)` — best-effort
+  salvage of readable files from a damaged archive.
+
+**There's no `lha_delete_from_archive`.** The bundled `lha.exe` build's
+delete command is destructively broken — deleting one entry from a small
+multi-file archive can silently drop unrelated entries too, or wipe the
+whole archive file. See [bin/lha/README.md](bin/lha/README.md) and the top
+of `backends/lha.py` for the full detail (and the other workarounds this
+backend applies for the same binary's listing bug and its interactive
+overwrite-prompt loop).
+
 ### Generic / roadmap
 
 - `list_supported_formats()` — current format coverage.
 - `extract_any_archive(archive_path, destination=None, password=None)` —
-  dispatches to the right backend (RAR, ARJ or 7-Zip today) by file
+  dispatches to the right backend (RAR, ARJ, 7-Zip or LHA today) by file
   extension; raises a clear "not implemented yet" error for formats still
   on the roadmap.
 
@@ -181,7 +216,10 @@ those features.
 
 - All RAR/ARJ/7-Zip subprocess calls are non-interactive by default (stdin
   is closed unless a command specifically needs it): a missing/incorrect
-  password fails fast instead of hanging on a prompt.
+  password fails fast instead of hanging on a prompt. The one exception is
+  `lha.exe`'s overwrite prompt, which ignores closed stdin and loops
+  forever instead of failing — worked around by always forcing overwrite
+  on LHA extraction rather than relying on that convention.
 - `Rar.exe` bundled here is an evaluation build (prints a nag banner on
   stdout); this doesn't affect functionality.
 - Console output is decoded trying UTF-8, then `cp1252`/`cp850` as

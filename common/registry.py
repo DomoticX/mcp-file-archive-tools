@@ -17,8 +17,8 @@ FORMAT_REGISTRY: dict[str, dict[str, Any]] = {
     ".tar": {"tool": "7za.exe", "implemented": True},
     ".gz": {"tool": "7za.exe", "implemented": True},
     ".xz": {"tool": "7za.exe", "implemented": True},
+    ".lzh": {"tool": "lha.exe", "implemented": True},
+    ".lha": {"tool": "lha.exe", "implemented": True},
     ".uha": {"tool": "uharc.exe", "implemented": False},
     ".cab": {"tool": "makecab.exe / expand.exe", "implemented": False},
-    ".lzh": {"tool": "lha.exe / lhasa.exe", "implemented": False},
-    ".lha": {"tool": "lha.exe / lhasa.exe", "implemented": False},
 }

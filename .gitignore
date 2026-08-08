@@ -11,3 +11,6 @@ bin/arj/*
 !bin/7z/
 bin/7z/*
 !bin/7z/README.md
+!bin/lha/
+bin/lha/*
+!bin/lha/README.md
