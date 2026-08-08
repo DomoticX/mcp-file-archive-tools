@@ -1,0 +1,10 @@
+bin/*
+temp/*
+__pycache__/
+!temp/README.md
+!bin/winrar/
+bin/winrar/*
+!bin/winrar/README.md
+!bin/arj/
+bin/arj/*
+!bin/arj/README.md
