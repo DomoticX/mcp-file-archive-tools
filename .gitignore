@@ -20,3 +20,6 @@ bin/uharc/*
 !bin/ace/
 bin/ace/*
 !bin/ace/README.md
+!bin/zoo/
+bin/zoo/*
+!bin/zoo/README.md

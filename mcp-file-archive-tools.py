@@ -12,6 +12,7 @@ Currently implemented (see backends/):
     - UHARC (.uha) via the bundled UHARC.EXE in bin/uharc/
     - CAB (.cab) via makecab.exe / expand.exe (ships with Windows, on PATH)
     - ACE (.ace) via the bundled acefile.exe in bin/ace/ (extraction only)
+    - ZOO (.zoo) via the bundled unzoo.exe in bin/zoo/ (extraction only)
 
 Layout:
     common/    - shared MCPServer instance, subprocess/path helpers, format registry
@@ -24,7 +25,7 @@ Run:
 from __future__ import annotations
 
 from common.server import mcp
-from backends import ace, arj, cab, generic, lha, rar, sevenzip, uharc  # noqa: F401  (imported for @mcp.tool() registration)
+from backends import ace, arj, cab, generic, lha, rar, sevenzip, uharc, zoo  # noqa: F401  (imported for @mcp.tool() registration)
 
 if __name__ == "__main__":
     mcp.run()

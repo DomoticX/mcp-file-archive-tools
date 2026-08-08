@@ -17,6 +17,7 @@ All bundled tools/backends below have been tested running on Windows 11
 | `.uha`                           | `UHARC.EXE`            | **Implemented** |
 | `.cab`                           | `makecab.exe` / `expand.exe` | **Implemented** |
 | `.ace`                           | `acefile.exe`          | **Implemented** (extract-only) |
+| `.zoo`                           | `unzoo.exe`            | **Implemented** (extract-only) |
 
 Call the `list_supported_formats` tool at any time to get this table
 programmatically.
@@ -46,6 +47,9 @@ programmatically.
 - `bin/ace/acefile.exe` (see [bin/ace/README.md](bin/ace/README.md) for
   where to get it). Used for all `.ace` operations (extraction only — see
   the ACE section below).
+- `bin/zoo/unzoo.exe` (see [bin/zoo/README.md](bin/zoo/README.md) for
+  where to get it). Used for all `.zoo` operations (extraction only — see
+  the ZOO section below).
 
 ## Running
 
@@ -73,6 +77,7 @@ backends/
   uharc.py                   - all UHARC tools (uharc_list_archive, ...)
   cab.py                     - all CAB tools (cab_list_archive, ...)
   ace.py                     - all ACE tools (ace_list_archive, ...)
+  zoo.py                     - all ZOO tools (zoo_list_archive, ...)
   generic.py                 - list_supported_formats, extract_any_archive
 ```
 
@@ -308,13 +313,42 @@ the console's own codepage crashes the whole process with a Python
 wrapper can work around. See [bin/ace/README.md](bin/ace/README.md) and
 the top of `backends/ace.py` for the full detail.
 
+### ZOO (.zoo)
+
+All ZOO tools are prefixed `zoo_`. **Extraction only** — ZOO is a
+mid-1980s format; the classic `zoo` compressor that could create archives
+isn't packaged here, so there is no `zoo_add_to_archive` or equivalent, and
+the format/tool has no password support either.
+
+- `zoo_list_archive(archive_path)` — list entries (name, size, compressed
+  size, date, time).
+- `zoo_extract_archive(archive_path, destination=None, files=None)` —
+  extract everything or a subset of entries (always overwrites).
+- `zoo_test_archive(archive_path)` — verify archive integrity, returns any
+  per-file failures.
+- `zoo_print_file_from_archive(archive_path, file_path)` — read a single
+  entry's contents without leaving it on disk afterwards (UTF-8 text, or
+  base64 for binary files); implemented via a temporary extraction since
+  `unzoo.exe`'s own print-to-stdout mixes a banner into the same stream.
+
+No genuine `.zoo` test archive was available to verify this backend
+against, so it was validated by hand-building minimal, spec-correct ZOO
+archives byte-for-byte in Python (from `unzoo`'s own published C source)
+and round-tripping them through the real `unzoo.exe` - listing, extraction
+and integrity testing all matched what the source predicts. One thing to
+be aware of: a corrupted/malicious archive whose entry chain doesn't
+strictly advance can put `unzoo.exe` into a genuine CPU-bound infinite
+loop, only stopped by the shared subprocess timeout. See
+[bin/zoo/README.md](bin/zoo/README.md) and the top of `backends/zoo.py`
+for the full detail.
+
 ### Generic / roadmap
 
 - `list_supported_formats()` — current format coverage.
 - `extract_any_archive(archive_path, destination=None, password=None)` —
-  dispatches to the right backend (RAR, ARJ, 7-Zip, LHA, UHARC, CAB or ACE
-  today) by file extension; raises a clear "not implemented yet" error for
-  formats still on the roadmap.
+  dispatches to the right backend (RAR, ARJ, 7-Zip, LHA, UHARC, CAB, ACE or
+  ZOO today) by file extension; raises a clear "not implemented yet" error
+  for formats still on the roadmap.
 
 ## Notes
 
@@ -341,3 +375,8 @@ the top of `backends/ace.py` for the full detail.
 - Every other backend bundles its own executable(s) under `bin/`; CAB is
   the exception and relies on `makecab.exe`/`expand.exe` already being on
   `PATH`, which is the case on a stock Windows install.
+- All subprocess calls share a timeout (`common/process.py`,
+  `DEFAULT_TIMEOUT`, 300s) as a last-resort safety net against a tool that
+  never returns - this matters most for `zoo_*`, where a corrupted archive
+  can put `unzoo.exe` into a genuine CPU-bound infinite loop that closed
+  stdin doesn't help with.

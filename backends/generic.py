@@ -11,6 +11,7 @@ from backends.lha import lha_extract_archive
 from backends.rar import extract_archive
 from backends.sevenzip import _SEVENZIP_TYPE_BY_EXT, sevenzip_extract_archive
 from backends.uharc import uharc_extract_archive
+from backends.zoo import zoo_extract_archive
 from common.paths import _require_file
 from common.registry import FORMAT_REGISTRY
 from common.server import mcp
@@ -33,17 +34,18 @@ def extract_any_archive(
 ) -> dict[str, Any]:
     """Extract any supported archive format, dispatching to the right backend by file extension.
 
-    Currently .rar, .arj, .lzh/.lha, .uha, .cab, .ace and the 7-Zip formats
-    (.7z/.zip/.tar/.gz/.xz) are implemented; other known extensions raise a
-    clear "not implemented yet" error naming the tool that will be used
-    once support is added (see list_supported_formats).
+    Currently .rar, .arj, .lzh/.lha, .uha, .cab, .ace, .zoo and the 7-Zip
+    formats (.7z/.zip/.tar/.gz/.xz) are implemented; other known extensions
+    raise a clear "not implemented yet" error naming the tool that will be
+    used once support is added (see list_supported_formats).
 
     Args:
         archive_path: Path to the archive file.
         destination: Output directory. Defaults to a new folder named after
             the archive, next to it.
         password: Optional password for encrypted archives. Ignored for
-            .lzh/.lha and .cab, which don't support passwords via this tool.
+            .lzh/.lha, .cab and .zoo, which don't support passwords via
+            this tool.
     """
     archive = _require_file(archive_path)
     ext = archive.suffix.lower()
@@ -67,4 +69,6 @@ def extract_any_archive(
         return cab_extract_archive(archive_path, destination=destination)
     if ext == ".ace":
         return ace_extract_archive(archive_path, destination=destination, password=password)
+    if ext == ".zoo":
+        return zoo_extract_archive(archive_path, destination=destination)
     return extract_archive(archive_path, destination=destination, password=password)
