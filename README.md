@@ -41,6 +41,26 @@ python mcp-file-archive-tools.py
 The server communicates over stdio, so add it to your MCP client config
 (e.g. Claude Desktop) pointing at this script.
 
+## Layout
+
+```
+mcp-file-archive-tools.py   - thin entrypoint: imports backends, runs the server
+common/
+  server.py                 - the shared MCPServer instance + project BASE_DIR
+  process.py                - subprocess helpers (_run, _check, exit-code lookup, ...)
+  paths.py                  - path helpers (_require_file, _prepare_sources, ...)
+  registry.py                - FORMAT_REGISTRY (extension -> backend tool + implemented?)
+backends/
+  rar.py                    - all RAR tools (list_archive, extract_archive, ...)
+  arj.py                    - all ARJ tools (arj_list_archive, arj_extract_archive, ...)
+  sevenzip.py                - all 7-Zip tools (sevenzip_list_archive, ...)
+  generic.py                 - list_supported_formats, extract_any_archive
+```
+
+Each backend module owns its executable path(s), exit-code table, output
+parser and `@mcp.tool()` functions - adding a new archiver (e.g. UHA, LHA)
+means adding one new file under `backends/` without touching the others.
+
 ## Available tools
 
 ### RAR
