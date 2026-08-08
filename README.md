@@ -3,6 +3,9 @@
 An MCP (Model Context Protocol) server for inspecting and manipulating archive
 files: listing, extracting, creating, updating and more.
 
+All bundled tools/backends below have been tested running on Windows 11
+64-bit.
+
 ## Status
 
 | Extension(s)                    | Backend               | Status        |
@@ -11,7 +14,7 @@ files: listing, extracting, creating, updating and more.
 | `.arj`                           | `arj.exe`              | **Implemented** |
 | `.7z`, `.zip`, `.tar`, `.gz`, `.xz` | `7za.exe`             | **Implemented** |
 | `.lzh`, `.lha`                   | `lha.exe`              | **Implemented** |
-| `.uha`                           | `uharc.exe`            | Planned |
+| `.uha`                           | `UHARC.EXE`            | **Implemented** |
 | `.cab`                           | `makecab.exe` / `expand.exe` | Planned |
 
 Call the `list_supported_formats` tool at any time to get this table
@@ -33,6 +36,9 @@ programmatically.
   get it). Used for all `.7z`/`.zip`/`.tar`/`.gz`/`.xz` operations.
 - `bin/lha/lha.exe` (see [bin/lha/README.md](bin/lha/README.md) for where
   to get it). Used for all `.lzh`/`.lha` operations.
+- `bin/uharc/UHARC.EXE` (see [bin/uharc/README.md](bin/uharc/README.md) for
+  where to get it). Used for all `.uha` operations; `UHARCSFX.EXE`
+  alongside it is also needed for `uharc_convert_to_sfx`.
 
 ## Running
 
@@ -57,11 +63,12 @@ backends/
   arj.py                    - all ARJ tools (arj_list_archive, arj_extract_archive, ...)
   sevenzip.py                - all 7-Zip tools (sevenzip_list_archive, ...)
   lha.py                     - all LHA/LZH tools (lha_list_archive, ...)
+  uharc.py                   - all UHARC tools (uharc_list_archive, ...)
   generic.py                 - list_supported_formats, extract_any_archive
 ```
 
 Each backend module owns its executable path(s), exit-code table, output
-parser and `@mcp.tool()` functions - adding a new archiver (e.g. UHA) means
+parser and `@mcp.tool()` functions - adding a new archiver (e.g. CAB) means
 adding one new file under `backends/` without touching the others.
 
 ## Available tools
@@ -204,19 +211,46 @@ of `backends/lha.py` for the full detail (and the other workarounds this
 backend applies for the same binary's listing bug and its interactive
 overwrite-prompt loop).
 
+### UHARC (.uha)
+
+All UHARC tools are prefixed `uharc_`. UHARC's own command set is the
+narrowest of the bunch: no delete, rename, update or comment support, and
+no "print a single file" command exist in the tool itself.
+
+- `uharc_list_archive(archive_path, password=None)` — list entries (name,
+  size, date, attributes). **Requires the password up front for encrypted
+  archives** — unlike the other backends, UHARC refuses to list an
+  encrypted archive at all without it.
+- `uharc_extract_archive(archive_path, destination=None, files=None, full_paths=True, password=None)` —
+  extract everything or a subset of entries (always overwrites).
+- `uharc_add_to_archive(archive_path, sources, recursive=True, compression_mode=None, password=None, encrypt_headers=False)` —
+  create a new archive or add files/directories to an existing one.
+- `uharc_move_to_archive(archive_path, sources, recursive=True, compression_mode=None)` —
+  like `uharc_add_to_archive`, but **deletes the original source files**
+  once they're safely in the archive.
+- `uharc_test_archive(archive_path, password=None)` — verify archive
+  integrity.
+- `uharc_print_file_from_archive(archive_path, file_path, password=None)` —
+  read a single entry's contents without leaving it on disk afterwards
+  (UTF-8 text, or base64 for binary files); implemented via a temporary
+  extraction since UHARC has no native print-to-stdout command.
+- `uharc_convert_to_sfx(archive_path, sfx_name=None)` — build a
+  self-extracting `.exe` by concatenating `UHARCSFX.EXE` with the archive
+  bytes (UHARC's own SFX mechanism — there's no separate convert command).
+
 ### Generic / roadmap
 
 - `list_supported_formats()` — current format coverage.
 - `extract_any_archive(archive_path, destination=None, password=None)` —
-  dispatches to the right backend (RAR, ARJ, 7-Zip or LHA today) by file
-  extension; raises a clear "not implemented yet" error for formats still
-  on the roadmap.
+  dispatches to the right backend (RAR, ARJ, 7-Zip, LHA or UHARC today) by
+  file extension; raises a clear "not implemented yet" error for formats
+  still on the roadmap.
 
 ## Notes
 
-- All RAR/ARJ/7-Zip subprocess calls are non-interactive by default (stdin
-  is closed unless a command specifically needs it): a missing/incorrect
-  password fails fast instead of hanging on a prompt. The one exception is
+- All subprocess calls are non-interactive by default (stdin is closed
+  unless a command specifically needs it): a missing/incorrect password
+  fails fast instead of hanging on a prompt. The one exception is
   `lha.exe`'s overwrite prompt, which ignores closed stdin and loops
   forever instead of failing — worked around by always forcing overwrite
   on LHA extraction rather than relying on that convention.

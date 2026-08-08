@@ -19,6 +19,6 @@ FORMAT_REGISTRY: dict[str, dict[str, Any]] = {
     ".xz": {"tool": "7za.exe", "implemented": True},
     ".lzh": {"tool": "lha.exe", "implemented": True},
     ".lha": {"tool": "lha.exe", "implemented": True},
-    ".uha": {"tool": "uharc.exe", "implemented": False},
+    ".uha": {"tool": "UHARC.EXE", "implemented": True},
     ".cab": {"tool": "makecab.exe / expand.exe", "implemented": False},
 }
