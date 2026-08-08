@@ -8,3 +8,6 @@ bin/winrar/*
 !bin/arj/
 bin/arj/*
 !bin/arj/README.md
+!bin/7z/
+bin/7z/*
+!bin/7z/README.md
