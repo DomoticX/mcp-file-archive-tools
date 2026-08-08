@@ -6,21 +6,116 @@ files: listing, extracting, creating, updating and more.
 All bundled tools/backends below have been tested running on Windows 11
 64-bit.
 
-## Status
+## Capability matrix
 
-| Extension(s)                    | Backend               | Status        |
-|----------------------------------|------------------------|---------------|
-| `.rar`                           | `Rar.exe` / `UnRAR.exe` | **Implemented** |
-| `.arj`                           | `arj.exe`              | **Implemented** |
-| `.7z`, `.zip`, `.tar`, `.gz`, `.xz` | `7za.exe`             | **Implemented** |
-| `.lzh`, `.lha`                   | `lha.exe`              | **Implemented** |
-| `.uha`                           | `UHARC.EXE`            | **Implemented** |
-| `.cab`                           | `makecab.exe` / `expand.exe` | **Implemented** |
-| `.ace`                           | `acefile.exe`          | **Implemented** (extract-only) |
-| `.zoo`                           | `unzoo.exe`            | **Implemented** (extract-only) |
+| Format                    | Backend                | List | Extract | Create | Update | Test | Password | SFX |
+|----------------------------|-------------------------|:----:|:-------:|:------:|:------:|:----:|:--------:|:---:|
+| `.rar`                      | `Rar.exe` / `UnRAR.exe` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `.arj`                      | `arj.exe`               | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `.7z`, `.zip`                | `7za.exe`               | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅¹ |
+| `.tar`                       | `7za.exe`               | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ✅¹ |
+| `.gz`, `.xz`                 | `7za.exe`               | ✅² | ✅² | ✅³ | ➖ | ✅ | ➖ | ✅¹ |
+| `.lzh`, `.lha`               | `lha.exe`               | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ |
+| `.uha`                       | `UHARC.EXE`             | ✅ | ✅ | ✅ | ➖⁴ | ✅ | ✅ | ✅ |
+| `.cab`                       | `makecab.exe` / `expand.exe` | ✅⁵ | ✅ | ✅⁶ | ➖ | ✅⁷ | ➖ | ➖ |
+| `.ace`                       | `acefile.exe`           | ✅ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ |
+| `.zoo`                       | `unzoo.exe`             | ✅ | ✅ | ➖ | ➖ | ✅ | ➖ | ➖ |
 
-Call the `list_supported_formats` tool at any time to get this table
-programmatically.
+✅ supported · ➖ not supported (either the format or the bundled tool
+doesn't offer it — see the per-format section under Available Tools)
+
+1. SFX creation needs an SFX stub module (e.g. `7zCon.sfx`) not included in
+   the standalone 7-Zip package — see [bin/7z/README.md](bin/7z/README.md).
+2. `.gz`/`.xz` list/extract transparently unwrap an inner `.tar` (a
+   `.tar.gz`/`.tar.xz`) across two decompression passes.
+3. `.gz`/`.xz` create auto-bundles multiple files/directories into a `.tar`
+   first — the format itself only holds a single compressed stream.
+4. UHARC has no separate update/refresh command — re-run
+   `uharc_add_to_archive` ("add or replace") instead.
+5. `cab_list_archive` only exposes bare file names, no directory paths
+   (extraction still restores the real structure).
+6. `cab_add_to_archive` always rebuilds the cabinet fresh — there's no true
+   append/merge into an existing one.
+7. `cab_test_archive` is a full extract-and-discard integrity check —
+   there's no dedicated test command for CAB.
+
+Call `list_supported_formats()` for this table in code-form, or
+`backend_status()` to check whether each backend's executable is actually
+present on this machine right now (see Quick start below).
+
+## Safety / destructive operations
+
+Most tools here only read archives or write brand-new files, but a few can
+change or delete things that already exist on disk. There's no
+confirmation prompt or dry-run mode built in — that's the caller's
+responsibility.
+
+**Deletes the original source files after archiving** (`*_move_to_archive`,
+present for RAR, ARJ, LHA, UHARC and CAB): `move_to_archive`,
+`arj_move_to_archive`, `lha_move_to_archive`, `uharc_move_to_archive`,
+`cab_move_to_archive`. These add files/directories to an archive and then
+remove the originals from disk — only use them when you actually want the
+sources gone, not `add_to_archive`'s equivalent.
+
+**Modifies an archive in place** (rewrites the archive file itself):
+`delete_from_archive` / `arj_delete_from_archive` /
+`sevenzip_delete_from_archive` (remove entries), `rename_in_archive` /
+`arj_rename_in_archive` / `sevenzip_rename_in_archive` (rename entries),
+`arj_garble_archive` (encrypts an existing archive's contents in place).
+`cab_add_to_archive`/`cab_move_to_archive` also silently overwrite an
+existing file at `archive_path` rather than merging into it, since
+`makecab.exe` has no append mode.
+
+**Safe (never touches existing files)**: everything else, including
+`repair_archive` and `*_recover_archive`, which always write to a *new*
+file/folder and leave the original archive untouched.
+
+## Quick start
+
+1. Install the [`mcp`](https://modelcontextprotocol.io) Python SDK:
+   `pip install mcp` (Python 3.10+).
+2. Grab the executables each backend needs — see Requirements below and
+   each `bin/*/README.md` for download links. Run `backend_status()` once
+   the server is connected to confirm what's actually found.
+3. Point your MCP client at this exact command:
+
+   ```
+   python K:\mcp-tools\mcp-file-archive-tools\mcp-file-archive-tools.py
+   ```
+
+   (adjust the path if you've moved/cloned the repo elsewhere). It's a
+   plain stdio MCP server — any MCP-compatible client can spawn it.
+
+**Claude Desktop** — add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "file-archive-tools": {
+      "command": "python",
+      "args": ["K:\\mcp-tools\\mcp-file-archive-tools\\mcp-file-archive-tools.py"]
+    }
+  }
+}
+```
+
+**Goose** — add to `~/.config/goose/config.yaml` (key names have shifted
+between Goose versions — check `goose configure` / your version's docs if
+this doesn't match):
+
+```yaml
+extensions:
+  file-archive-tools:
+    type: stdio
+    cmd: python
+    args: ["K:\\mcp-tools\\mcp-file-archive-tools\\mcp-file-archive-tools.py"]
+    enabled: true
+```
+
+**Any other MCP client**: configure it to run
+`python K:\mcp-tools\mcp-file-archive-tools\mcp-file-archive-tools.py` as a
+stdio-based MCP server — that's the whole interface, no ports or extra
+setup involved.
 
 ## Requirements
 
@@ -50,15 +145,6 @@ programmatically.
 - `bin/zoo/unzoo.exe` (see [bin/zoo/README.md](bin/zoo/README.md) for
   where to get it). Used for all `.zoo` operations (extraction only — see
   the ZOO section below).
-
-## Running
-
-```bash
-python mcp-file-archive-tools.py
-```
-
-The server communicates over stdio, so add it to your MCP client config
-(e.g. Claude Desktop) pointing at this script.
 
 ## Layout
 
@@ -344,7 +430,12 @@ for the full detail.
 
 ### Generic / roadmap
 
-- `list_supported_formats()` — current format coverage.
+- `list_supported_formats()` — current format coverage (what the code
+  knows how to drive; see the capability matrix above).
+- `backend_status()` — checks the real filesystem/PATH: whether each
+  backend's required `.exe` is actually present and found right now on
+  this machine, not just whether the code supports the format. Call this
+  first if a format-specific tool call fails unexpectedly.
 - `extract_any_archive(archive_path, destination=None, password=None)` —
   dispatches to the right backend (RAR, ARJ, 7-Zip, LHA, UHARC, CAB, ACE or
   ZOO today) by file extension; raises a clear "not implemented yet" error

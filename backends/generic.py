@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+from pathlib import Path
 from typing import Any
 
-from backends.ace import ace_extract_archive
-from backends.arj import arj_extract_archive
+from backends.ace import ACE_EXE, ace_extract_archive
+from backends.arj import ARJ_EXE, arj_extract_archive
 from backends.cab import cab_extract_archive
-from backends.lha import lha_extract_archive
-from backends.rar import extract_archive
-from backends.sevenzip import _SEVENZIP_TYPE_BY_EXT, sevenzip_extract_archive
-from backends.uharc import uharc_extract_archive
-from backends.zoo import zoo_extract_archive
+from backends.lha import LHA_EXE, lha_extract_archive
+from backends.rar import RAR_EXE, UNRAR_EXE, extract_archive
+from backends.sevenzip import _SEVENZIP_TYPE_BY_EXT, SEVENZIP_EXE, sevenzip_extract_archive
+from backends.uharc import UHARC_EXE, UHARC_SFX_STUB, uharc_extract_archive
+from backends.zoo import ZOO_EXE, zoo_extract_archive
 from common.paths import _require_file
 from common.registry import FORMAT_REGISTRY
 from common.server import mcp
@@ -26,6 +29,58 @@ def list_supported_formats() -> dict[str, Any]:
         ext: {"tool": info["tool"], "implemented": info["implemented"]}
         for ext, info in sorted(FORMAT_REGISTRY.items())
     }
+
+
+@mcp.tool()
+def backend_status() -> dict[str, Any]:
+    """Check which backend executables are actually present and usable on this machine.
+
+    Unlike list_supported_formats() (which only reflects what the code
+    knows how to drive), this checks the real filesystem/PATH: whether each
+    required .exe actually exists where the corresponding backend expects
+    it. Useful for an agent to check readiness before attempting an
+    operation, and to get an exact path to point to in a bin/*/README.md if
+    something is missing.
+    """
+
+    def _exe(path) -> dict[str, Any]:
+        return {"path": str(path), "found": path.is_file()}
+
+    def _on_path(name: str) -> dict[str, Any]:
+        # subprocess.run() on Windows resolves a bare "name.exe" via
+        # CreateProcess's native search order, which checks System32
+        # *before* the PATH environment variable. shutil.which() doesn't
+        # replicate that - it just walks PATH in order - so in a shell
+        # whose PATH happens to list e.g. Git's coreutils "expand.exe"
+        # before System32, it reports the wrong tool as "the one that will
+        # run". Check the canonical System32 copy first since that's what
+        # actually gets invoked regardless of PATH content, and only fall
+        # back to shutil.which() (a real PATH search) if it's absent.
+        system32 = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / name
+        if system32.is_file():
+            return {"path": str(system32), "found": True}
+        found = shutil.which(name)
+        return {"path": found or name, "found": found is not None}
+
+    backends: dict[str, dict[str, Any]] = {
+        "rar": {"Rar.exe": _exe(RAR_EXE), "UnRAR.exe": _exe(UNRAR_EXE)},
+        "arj": {"arj.exe": _exe(ARJ_EXE)},
+        "sevenzip": {"7za.exe": _exe(SEVENZIP_EXE)},
+        "lha": {"lha.exe": _exe(LHA_EXE)},
+        "uharc": {
+            "UHARC.EXE": _exe(UHARC_EXE),
+            "UHARCSFX.EXE (optional, for uharc_convert_to_sfx)": _exe(UHARC_SFX_STUB),
+        },
+        "cab": {"makecab.exe": _on_path("makecab.exe"), "expand.exe": _on_path("expand.exe")},
+        "ace": {"acefile.exe": _exe(ACE_EXE)},
+        "zoo": {"unzoo.exe": _exe(ZOO_EXE)},
+    }
+
+    result: dict[str, Any] = {}
+    for name, executables in backends.items():
+        required = {k: v for k, v in executables.items() if "optional" not in k}
+        result[name] = {"ready": all(v["found"] for v in required.values()), "executables": executables}
+    return result
 
 
 @mcp.tool()
